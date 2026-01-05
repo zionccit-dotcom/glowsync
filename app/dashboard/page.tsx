@@ -5,6 +5,7 @@ import { Users, DollarSign, CalendarCheck, Clock, MoreHorizontal, Shield } from 
 import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
+import { toast } from "sonner"
 
 export default function DashboardPage() {
     return (
@@ -154,7 +155,9 @@ export default function DashboardPage() {
                                 <p className="text-sm text-muted-foreground mb-2">
                                     You have a 45m gap tomorrow at 2:15 PM.
                                 </p>
-                                <Button size="sm" variant="secondary" className="w-full">Auto-Fill with Promo</Button>
+                                <Button size="sm" variant="secondary" className="w-full" onClick={() => toast.success("Promo Sent!", { description: "We sent a -15% offer to 50 local clients likely to book this slot." })}>
+                                    Auto-Fill with Promo
+                                </Button>
                             </div>
                         </div>
                     </CardContent>

@@ -1,6 +1,9 @@
+"use client"
+
 import { Calendar, Home, Users, Settings, Bell, Menu, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ModeToggle } from "@/components/mode-toggle"
+import { toast } from "sonner"
 
 export default function DashboardLayout({
     children,
@@ -20,15 +23,15 @@ export default function DashboardLayout({
                         <Home className="mr-2 h-4 w-4" />
                         Overview
                     </Button>
-                    <Button variant="ghost" className="justify-start">
+                    <Button variant="ghost" className="justify-start" onClick={() => toast.info("Calendar View", { description: "Syncing with Google Calendar..." })}>
                         <Calendar className="mr-2 h-4 w-4" />
                         Calendar
                     </Button>
-                    <Button variant="ghost" className="justify-start">
+                    <Button variant="ghost" className="justify-start" onClick={() => toast.info("Client Database", { description: "Loading 573 active client profiles." })}>
                         <Users className="mr-2 h-4 w-4" />
                         Clients
                     </Button>
-                    <Button variant="ghost" className="justify-start">
+                    <Button variant="ghost" className="justify-start" onClick={() => toast.info("Settings", { description: "Global configuration panel." })}>
                         <Settings className="mr-2 h-4 w-4" />
                         Settings
                     </Button>
