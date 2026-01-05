@@ -6,8 +6,45 @@ import { Badge } from "@/components/ui/badge"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { toast } from "sonner"
+import { supabase } from "@/lib/supabase"
+import * as React from "react"
 
 export default function DashboardPage() {
+    const [stats, setStats] = React.useState({
+        revenue: 0,
+        bookings: 0,
+        activeClients: 0
+    })
+    const [recentBookings, setRecentBookings] = React.useState<any[]>([])
+
+    React.useEffect(() => {
+        async function loadDashboard() {
+            // Fetch Bookings
+            const { data: bookings } = await supabase
+                .from('bookings')
+                .select(`
+                    *,
+                    booking_items (
+                        guest_name,
+                        price_at_booking
+                    )
+                `)
+                .order('created_at', { ascending: false })
+                .limit(10)
+
+            if (bookings) {
+                const totalRev = bookings.reduce((sum, b) => sum + (b.total_price || 0), 0)
+                setStats({
+                    revenue: totalRev,
+                    bookings: bookings.length,
+                    activeClients: new Set(bookings.map(b => b.user_id)).size
+                })
+                setRecentBookings(bookings)
+            }
+        }
+        loadDashboard()
+    }, [])
+
     return (
         <div className="space-y-6">
             {/* Stats Row */}
@@ -18,7 +55,7 @@ export default function DashboardPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">$2,350.00</div>
+                        <div className="text-2xl font-bold">${stats.revenue.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">+20.1% from last month</p>
                     </CardContent>
                 </Card>
@@ -28,7 +65,7 @@ export default function DashboardPage() {
                         <CalendarCheck className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">+12</div>
+                        <div className="text-2xl font-bold">{stats.bookings}</div>
                         <p className="text-xs text-muted-foreground">+180% from last month</p>
                     </CardContent>
                 </Card>
@@ -38,8 +75,8 @@ export default function DashboardPage() {
                         <Users className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">+573</div>
-                        <p className="text-xs text-muted-foreground">+201 since last hour</p>
+                        <div className="text-2xl font-bold">{stats.activeClients}</div>
+                        <p className="text-xs text-muted-foreground">unique guests in last 10 bookings</p>
                     </CardContent>
                 </Card>
                 <Card>
@@ -61,66 +98,44 @@ export default function DashboardPage() {
                 <Card className="col-span-4">
                     <CardHeader>
                         <CardTitle>Recent Bookings</CardTitle>
-                        <CardDescription>You have 3 new "Squad Bookings" today.</CardDescription>
+                        <CardDescription>Live feed from TrustPay Secure Server.</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-8">
+                            {recentBookings.length === 0 && <div className="text-muted-foreground">No bookings found. Try booking a squad!</div>}
 
-                            {/* Squad Booking Item */}
-                            <div className="flex items-start">
-                                <Avatar className="h-9 w-9">
-                                    <AvatarImage src="/avatars/01.png" alt="Avatar" />
-                                    <AvatarFallback>JD</AvatarFallback>
-                                </Avatar>
-                                <div className="ml-4 space-y-1 w-full">
-                                    <div className="flex items-center justify-between">
-                                        <p className="text-sm font-medium leading-none">John Doe & Squad (3)</p>
-                                        <Badge variant="success" className="gap-1"><Shield className="h-3 w-3" /> TrustPay Secured</Badge>
+                            {recentBookings.map((booking) => (
+                                <div key={booking.id} className="flex items-start">
+                                    <Avatar className="h-9 w-9">
+                                        <AvatarFallback>G</AvatarFallback>
+                                    </Avatar>
+                                    <div className="ml-4 space-y-1 w-full">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-sm font-medium leading-none">Guest {booking.user_id.substring(0, 6)}</p>
+                                            {booking.trustpay_status === 'hold_active' && (
+                                                <Badge variant="success" className="gap-1"><Shield className="h-3 w-3" /> TrustPay Secured</Badge>
+                                            )}
+                                        </div>
+                                        <p className="text-sm text-muted-foreground">
+                                            {new Date(booking.start_time).toLocaleDateString()} at {new Date(booking.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                        </p>
+
+                                        {/* Squad Members Detail */}
+                                        {booking.booking_items && booking.booking_items.length > 0 && (
+                                            <div className="mt-2 rounded-md bg-muted/50 p-3 text-sm space-y-2">
+                                                {booking.booking_items.map((item: any, idx: number) => (
+                                                    <div key={idx} className="flex justify-between">
+                                                        <span>{item.guest_name}</span>
+                                                        <span className="text-muted-foreground">${item.price_at_booking}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
-                                    <p className="text-sm text-muted-foreground">Today, 2:00 PM - 3:30 PM (90m)</p>
-
-                                    {/* Squad Members Detail */}
-                                    <div className="mt-2 rounded-md bg-muted/50 p-3 text-sm space-y-2">
-                                        <div className="flex justify-between">
-                                            <span>John (Primary)</span>
-                                            <span className="text-muted-foreground">Haircut ($45)</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>Mike (Guest)</span>
-                                            <span className="text-muted-foreground">Beard Trim ($25)</span>
-                                        </div>
-                                        <div className="flex justify-between">
-                                            <span>Sam (Guest)</span>
-                                            <span className="text-muted-foreground">Haircut ($45)</span>
-                                        </div>
-                                    </div>
+                                    <div className="ml-auto font-medium pl-4">+${booking.total_price}</div>
                                 </div>
-                                <div className="ml-auto font-medium pl-4">+$115.00</div>
-                            </div>
+                            ))}
 
-                            {/* Single Booking Item */}
-                            <div className="flex items-center">
-                                <Avatar className="h-9 w-9">
-                                    <AvatarFallback>SM</AvatarFallback>
-                                </Avatar>
-                                <div className="ml-4 space-y-1">
-                                    <p className="text-sm font-medium leading-none">Sarah Miller</p>
-                                    <p className="text-sm text-muted-foreground">Tomorrow, 10:00 AM</p>
-                                </div>
-                                <div className="ml-auto font-medium">+$65.00</div>
-                            </div>
-
-                            {/* Single Booking Item */}
-                            <div className="flex items-center">
-                                <Avatar className="h-9 w-9">
-                                    <AvatarFallback>WK</AvatarFallback>
-                                </Avatar>
-                                <div className="ml-4 space-y-1">
-                                    <p className="text-sm font-medium leading-none">William Kim</p>
-                                    <p className="text-sm text-muted-foreground">Tomorrow, 11:00 AM</p>
-                                </div>
-                                <div className="ml-auto font-medium">+$35.00</div>
-                            </div>
 
                         </div>
                     </CardContent>

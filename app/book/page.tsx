@@ -7,9 +7,11 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { cn } from "@/lib/utils"
-// Import the new viral card
 import { ServiceVideoCard } from "@/components/service-video-card"
 import { SiteHeader } from "@/components/site-header"
+import { supabase } from "@/lib/supabase"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
 
 // Mock Data with Video Placeholders
 const SERVICES = [
@@ -51,9 +53,84 @@ type SquadMember = {
 }
 
 export default function BookingPage() {
+    const router = useRouter()
+    const [user, setUser] = React.useState<any>(null)
+    const [isSubmitting, setIsSubmitting] = React.useState(false)
     const [squad, setSquad] = React.useState<SquadMember[]>([
         { id: "me", name: "Me (Primary)", serviceId: "" }
     ])
+
+    React.useEffect(() => {
+        const checkUser = async () => {
+            const { data: { session } } = await supabase.auth.getSession()
+            if (!session) {
+                toast("Please login to book", { description: "You need an account to secure your appointment." })
+                router.push("/login")
+            } else {
+                setUser(session.user)
+            }
+        }
+        checkUser()
+    }, [router])
+
+    const handleConfirmBooking = async () => {
+        if (!user) {
+            router.push("/login")
+            return
+        }
+        setIsSubmitting(true)
+        const total = calculateTotal()
+        const duration = calculateTotalDuration()
+
+        // 1. Create the main booking record
+        const { data: booking, error: bookingError } = await supabase
+            .from('bookings')
+            .insert({
+                user_id: user.id, // REAL AUTH ID
+                start_time: new Date().toISOString(), // Demo: "Right now"
+                end_time: new Date(Date.now() + duration * 60000).toISOString(),
+                status: 'confirmed',
+                total_price: total,
+                trustpay_status: 'hold_active' // Simulating TrustPay success
+            })
+            .select()
+            .single()
+
+        if (bookingError) {
+            toast.error("Booking Failed", { description: bookingError.message })
+            setIsSubmitting(false)
+            return
+        }
+
+        // 2. Create items for each squad member
+        const items = squad.map(member => {
+            const service = SERVICES.find(s => s.id === member.serviceId)
+            return {
+                booking_id: booking.id,
+                // We need the real UUID from the DB services table, but for this demo we are using static service IDs 's1', etc.
+                // In a real app, we would fetch services from DB too. 
+                // For now, we will just store the static ID or skip the foreign key if strict.
+                // NOTE: Schema expects uuid for service_id. We must handle this.
+                // Workaround: We will insert null for service_id and just store the name in 'guest_name' for demo simplicity
+                // OR we insert the service first. 
+                // Let's rely on 'guest_name' storing the details for this MVP step.
+                guest_name: `${member.name} (${service?.name})`,
+                price_at_booking: service?.price || 0
+            }
+        })
+
+        const { error: itemsError } = await supabase
+            .from('booking_items')
+            .insert(items)
+
+        if (itemsError) {
+            toast.error("Partial Error", { description: "Booking created but items failed." })
+        } else {
+            toast.success("Booking Confirmed!", { description: "Your TrustPay hold is active." })
+            router.push('/dashboard') // Redirect to dashboard to see it
+        }
+        setIsSubmitting(false)
+    }
 
     const [step, setStep] = React.useState(1)
 
@@ -250,8 +327,8 @@ export default function BookingPage() {
                         </CardContent>
                         <CardFooter className="flex gap-2">
                             <Button variant="outline" className="flex-1" onClick={() => setStep(1)}>Back</Button>
-                            <Button className="flex-1" onClick={() => alert("Booking Confirmed & Protected with TrustPay!")}>
-                                Confirm Reservation
+                            <Button className="flex-1" onClick={handleConfirmBooking} disabled={isSubmitting}>
+                                {isSubmitting ? "Processing..." : "Confirm Reservation"}
                             </Button>
                         </CardFooter>
                     </Card>
