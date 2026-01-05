@@ -35,12 +35,52 @@ const SHOP_DATA = {
     ]
 }
 
+import { supabase } from "@/lib/supabase"
+import { toast } from "sonner"
+import { useRouter } from "next/navigation"
+
+// Mock Data for "The Shop"
+// ...
 export default function ShopPage() {
     const params = useParams()
+    const router = useRouter()
     // In a real app, we fetch shop data based on params.domain
     const shopName = params.domain ? String(params.domain).replace(/-/g, ' ') : SHOP_DATA.name
 
     const [selectedServices, setSelectedServices] = React.useState<string[]>([])
+    const [isSubmitting, setIsSubmitting] = React.useState(false)
+
+    const handleBooking = async () => {
+        setIsSubmitting(true)
+
+        // Calculate total price
+        const totalPrice = selectedServices.reduce((acc, id) => {
+            return acc + (SHOP_DATA.services.find(s => s.id === id)?.price || 0)
+        }, 0)
+
+        // 1. Create Booking
+        // Note: In a real app, 'user_id' would be the Shop Owner's ID so it shows in their dash.
+        // We will fallback to a hardcoded 'demo' ID or just 'guest' for now since we don't have the shop owner's UUID in the URL.
+        const { error } = await supabase
+            .from('bookings')
+            .insert({
+                user_id: 'guest_' + Math.random().toString(36).substr(2, 5),
+                start_time: new Date().toISOString(), // "Now"
+                end_time: new Date(Date.now() + 60 * 60000).toISOString(),
+                status: 'confirmed',
+                total_price: totalPrice,
+                trustpay_status: 'hold_active'
+            })
+
+        if (error) {
+            toast.error("Booking Failed", { description: error.message })
+        } else {
+            toast.success("Booking Request Sent!", { description: "The shop will confirm shortly." })
+            // Reset selection
+            setSelectedServices([])
+        }
+        setIsSubmitting(false)
+    }
 
     const toggleService = (id: string) => {
         setSelectedServices(prev =>
@@ -161,8 +201,13 @@ export default function ShopPage() {
                             </span>
                         </div>
                     </div>
-                    <Button size="lg" className="rounded-full px-8 shadow-lg shadow-primary/20">
-                        Book Now <ShieldCheck className="ml-2 h-4 w-4 opacity-50" />
+                    <Button
+                        size="lg"
+                        className="rounded-full px-8 shadow-lg shadow-primary/20"
+                        onClick={handleBooking}
+                        disabled={isSubmitting}
+                    >
+                        {isSubmitting ? "Processing..." : "Book Now"} <ShieldCheck className="ml-2 h-4 w-4 opacity-50" />
                     </Button>
                 </div>
             </div>

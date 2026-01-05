@@ -1,9 +1,39 @@
+"use client"
+import * as React from "react"
+import { supabase } from "@/lib/supabase"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { CalendarCheck, DollarSign, TrendingUp, UserPlus, Clock, MoreHorizontal } from "lucide-react"
 
 export default function DashboardPage() {
+    const [revenue, setRevenue] = React.useState(0)
+    const [bookingCount, setBookingCount] = React.useState(0)
+
+    React.useEffect(() => {
+        const fetchStats = async () => {
+            const { data } = await supabase.from('bookings').select('total_price')
+            if (data) {
+                setBookingCount(data.length)
+                setRevenue(data.reduce((sum, b) => sum + (b.total_price || 0), 0))
+            }
+        }
+        fetchStats()
+
+        // Real-time Subscription
+        const channel = supabase
+            .channel('dashboard_updates')
+            .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'bookings' }, (payload) => {
+                // Optimistic update or just re-fetch
+                const newBooking = payload.new as any
+                setRevenue(prev => prev + (newBooking.total_price || 0))
+                setBookingCount(prev => prev + 1)
+            })
+            .subscribe()
+
+        return () => { supabase.removeChannel(channel) }
+    }, [])
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
@@ -24,7 +54,7 @@ export default function DashboardPage() {
                         <DollarSign className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">$1,250.00</div>
+                        <div className="text-2xl font-bold">${revenue.toFixed(2)}</div>
                         <p className="text-xs text-muted-foreground">+15% from last week</p>
                     </CardContent>
                 </Card>
@@ -34,7 +64,7 @@ export default function DashboardPage() {
                         <CalendarCheck className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold">12</div>
+                        <div className="text-2xl font-bold">{bookingCount}</div>
                         <p className="text-xs text-muted-foreground">3 pending requests</p>
                     </CardContent>
                 </Card>
